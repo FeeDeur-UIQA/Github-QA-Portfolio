@@ -1,0 +1,28 @@
+{
+  "compilerOptions": {
+    "target": "ESNext",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "lib": ["ESNext", "DOM"],
+    "baseUrl": ".",
+    "paths": {
+      "@pages/*": ["src/pages/*"],
+      "@fixtures/*": ["fixtures/*"],
+      "@utils/*": ["src/utils/*"],
+      "@support/*": ["src/support/*"],
+      "@factories/*": ["src/support/factories/*"]
+    },
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    
+    /* Strict Type-Checking Enhancements (Phase 2 Stage 6) */
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noImplicitReturns": true
+  },
+  "include": ["src/**/*.ts", "tests/**/*.ts", "fixtures/**/*.ts", "playwright.config.ts", "global-teardown.ts"],
+  "exclude": ["node_modules", ".env", ".env.local", ".env.*", "**/*.spec.copy.ts", "smoke.spec copy.ts"]
+}

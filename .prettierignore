@@ -1,0 +1,8 @@
+node_modules
+playwright-report
+test-results
+coverage
+dist
+package-lock.json
+*.log
+**/*-snapshots/

@@ -1,0 +1,57 @@
+# Dependencies
+node_modules/
+
+# Test Artifacts
+test-results/
+playwright-report/
+smoke-dashboard/
+smoke-metrics.jsonl
+/playwright/.auth/
+
+# Coverage Reports
+coverage/
+.nyc_output/
+
+# Playwright Agents (generated, not source code)
+.github/agents/
+**/playwright-test-*.agent.md
+
+# Copilot instructions (local-only)
+.github/copilot-instructions.md
+
+# Environment & Secrets
+.env
+.env.local
+
+# OS Files
+.DS_Store
+Thumbs.db
+
+# IDE & Dev Tools
+.vscode/
+.idea/
+.roo/
+.husky/
+
+# Build Outputs
+dist/
+build/
+
+# Screenshots (if not versioned)
+**/screenshots/
+**/*-snapshots/
+
+# Lighthouse CI
+.lighthouseci/
+lighthouse-results.json
+
+# CI Artifacts
+blob-report/
+artifact/
+
+# Archive folder - working documents, not for portfolio
+documentation/archive/
+.jira-failure-patterns.json
+
+# K6 compiled load tests
+tests/load/compiled/
