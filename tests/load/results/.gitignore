@@ -1,0 +1,5 @@
+# Load test results
+*.json
+*.html
+*.xml
+*.csv
