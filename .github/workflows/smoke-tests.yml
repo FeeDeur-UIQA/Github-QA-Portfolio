@@ -1,0 +1,98 @@
+name: Smoke Tests
+
+on:
+  pull_request:
+    branches: [main, develop]
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+      - 'documentation/**'
+      - '.gitignore'
+  workflow_dispatch:
+
+jobs:
+  smoke-tests:
+    timeout-minutes: 10
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, firefox, webkit]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright Browsers
+        run: npx playwright install --with-deps ${{ matrix.browser }}
+
+      - name: Run Smoke Tests
+        continue-on-error: true # Don't fail CI on test failures
+        run: npx playwright test tests/smoke/ --project=${{ matrix.browser }}
+        env:
+          CI: true
+
+      - name: Upload Smoke Dashboard
+        if: always() && matrix.browser == 'chromium'
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-dashboard
+          path: smoke-dashboard/
+          retention-days: 30
+
+      - name: Upload Smoke Metrics
+        if: always() && matrix.browser == 'chromium'
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-metrics
+          path: smoke-metrics.jsonl
+          retention-days: 90
+
+      - name: Upload Test Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-results-${{ matrix.browser }}
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 30
+
+      - name: Upload Trace on Failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-trace-${{ matrix.browser }}
+          path: test-results/**/*-trace.zip
+          retention-days: 7
+
+      - name: Performance Budget Check
+        if: always() && matrix.browser == 'chromium'
+        continue-on-error: true
+        run: |
+          if [ -f smoke-dashboard/data.json ]; then
+            node -e "
+              const data = require('./smoke-dashboard/data.json');
+              const violations = data.budgetViolations || [];
+              if (violations.length > 0) {
+                console.warn('⚠️ Performance Budget Warnings:');
+                violations.forEach(v => {
+                  console.warn(\`  - \${v.testName || v.name}: \${v.duration}ms\`);
+                });
+                console.warn('ℹ️ Budget warnings do not fail the build');
+              } else {
+                console.log('✅ All performance budgets met');
+              }
+              console.log(\`📊 Tests: \${data.summary?.total || 0} total, \${data.summary?.passed || 0} passed\`);
+            "
+          else
+            echo '⚠️ No smoke dashboard data found'
+          fi

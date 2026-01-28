@@ -1,0 +1,35 @@
+# 1. BASE: Use the latest verified Playwright version for 2025
+FROM mcr.microsoft.com/playwright:v1.49.0-jammy AS base
+
+# 2. DEPENDENCIES: Strategy - Layer Caching & Integrity
+FROM base AS deps
+WORKDIR /app
+# Only copy lockfiles to maximize layer reuse
+COPY package.json package-lock.json ./
+# npm ci ensures the dependency tree is identical to the development environment
+RUN npm ci
+
+# 3. BUILD/RUNTIME: Final lean execution layer
+FROM base AS runner
+WORKDIR /app
+
+# Environmental isolation
+ENV NODE_ENV=test
+ENV PLAYWRIGHT_HTML_REPORT_HOST=0.0.0.0
+
+# Copy node_modules from deps stage
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
+
+# Security: Run as the pre-configured 'pwuser' provided by the Microsoft image
+USER pwuser
+
+# Healthcheck to ensure the container is responsive during long test suites
+HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
+  CMD npx playwright --version || exit 1
+
+# Default execution with sharding capability for CI scalability
+CMD ["npx", "playwright", "test", "--reporter=html"]
+
+# Added Otel instrumentation for real-time observability of the test runner's health
+ENV NODE_OPTIONS="--require ./instrumentation.js"

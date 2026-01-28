@@ -1,0 +1,16 @@
+# Ignore local dependencies
+node_modules/
+package-lock.json # We use the one on the host to build, but npm ci handles it
+
+# Ignore local test artifacts
+test-results/
+playwright-report/
+blob-report/
+
+# Ignore OS-specific noise
+.DS_Store
+Thumbs.db
+
+# Ignore Git and Documentation
+.git/
+documentation/

@@ -1,0 +1,108 @@
+name: Flow Tests (E2E)
+
+on:
+  schedule:
+    # Run nightly at 2 AM UTC
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+    inputs:
+      feature:
+        description: 'Feature to test (auth|cart|catalog|account|all)'
+        required: false
+        default: 'all'
+  pull_request:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+      - 'documentation/**'
+      - '.gitignore'
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+      - 'documentation/**'
+      - '.gitignore'
+
+jobs:
+  flow-tests:
+    timeout-minutes: 30
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, firefox, webkit]
+        feature: [auth, cart, catalog, account]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright Browsers
+        run: npx playwright install --with-deps ${{ matrix.browser }}
+
+      - name: Run Flow Tests - ${{ matrix.feature }}
+        continue-on-error: true # Don't fail CI on test failures
+        run: |
+          if [ "${{ github.event.inputs.feature }}" != "" ] && [ "${{ github.event.inputs.feature }}" != "all" ]; then
+            npx playwright test tests/flows/${{ github.event.inputs.feature }}/ --project=${{ matrix.browser }}
+          else
+            npx playwright test tests/flows/${{ matrix.feature }}/ --project=${{ matrix.browser }}
+          fi
+        env:
+          CI: true
+
+      - name: Upload Test Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: flow-report-${{ matrix.feature }}-${{ matrix.browser }}
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 30
+
+      - name: Upload Trace on Failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: flow-trace-${{ matrix.feature }}-${{ matrix.browser }}
+          path: test-results/**/*-trace.zip
+          retention-days: 14
+
+      - name: Upload Screenshots
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: flow-screenshots-${{ matrix.feature }}-${{ matrix.browser }}
+          path: test-results/**/*.png
+          retention-days: 7
+
+  test-summary:
+    name: Test Summary
+    if: always()
+    needs: [flow-tests]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download All Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Generate Summary
+        run: |
+          echo "## Flow Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "### Test Matrix" >> $GITHUB_STEP_SUMMARY
+          echo "- Browsers: chromium, firefox, webkit" >> $GITHUB_STEP_SUMMARY
+          echo "- Features: auth, cart, catalog, account" >> $GITHUB_STEP_SUMMARY
+          echo "### Artifacts" >> $GITHUB_STEP_SUMMARY
+          ls -la artifacts/ >> $GITHUB_STEP_SUMMARY || echo "No artifacts found" >> $GITHUB_STEP_SUMMARY

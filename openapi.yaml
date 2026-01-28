@@ -1,0 +1,346 @@
+openapi: 3.0.3
+info:
+  title: AutomationExercise API
+  description: |
+    Public API for AutomationExercise e-commerce platform
+
+    Base URL: https://automationexercise.com/api
+
+    This OpenAPI spec serves as the single source of truth
+    for API contracts. Tests are generated from this specification to ensure
+    API compliance and detect breaking changes.
+
+    **Features**:
+    - Product catalog browsing
+    - Brand filtering
+    - Product search functionality
+
+    **Response Format**: All endpoints return JSON with `responseCode` field
+  version: 1.0.0
+  contact:
+    name: API Support
+    url: https://automationexercise.com
+
+servers:
+  - url: https://automationexercise.com/api
+    description: Production server
+
+tags:
+  - name: Products
+    description: Product catalog operations
+  - name: Brands
+    description: Brand listing and filtering
+  - name: Search
+    description: Product search functionality
+
+paths:
+  /productsList:
+    get:
+      operationId: getProductsList
+      summary: Retrieve all products
+      description: |
+        Returns complete product catalog with details including:
+        - Product ID, name, price
+        - Brand information
+        - Category hierarchy (usertype -> category)
+
+        **Performance SLO**: P50 < 800ms, P95 < 1500ms
+      tags:
+        - Products
+      parameters:
+        - name: page
+          in: query
+          description: Page number for pagination (not officially documented, may not be implemented)
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          description: Items per page (not officially documented, may not be implemented)
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+      responses:
+        '200':
+          description: Successful response with product list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductsListResponse'
+              examples:
+                success:
+                  summary: Example product list
+                  value:
+                    responseCode: 200
+                    products:
+                      - id: 1
+                        name: Blue Top
+                        price: Rs. 500
+                        brand: Polo
+                        category:
+                          usertype:
+                            usertype: Women
+                          category: Tops
+                      - id: 2
+                        name: Men Tshirt
+                        price: Rs. 400
+                        brand: H&M
+                        category:
+                          usertype:
+                            usertype: Men
+                          category: Tshirts
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /brandsList:
+    get:
+      operationId: getBrandsList
+      summary: Retrieve all brands
+      description: |
+        Returns list of all available product brands
+
+        **Performance SLO**: P50 < 600ms, P95 < 1200ms
+      tags:
+        - Brands
+      responses:
+        '200':
+          description: Successful response with brand list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BrandsListResponse'
+              examples:
+                success:
+                  summary: Example brand list
+                  value:
+                    responseCode: 200
+                    brands:
+                      - id: 1
+                        brand: Polo
+                      - id: 2
+                        brand: H&M
+                      - id: 3
+                        brand: Madame
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /searchProduct:
+    post:
+      operationId: searchProducts
+      summary: Search for products
+      description: |
+        Search products by name or description
+        Returns filtered product list matching search criteria
+
+        **Performance SLO**: P50 < 1000ms, P95 < 2000ms
+
+        **Note**: API accepts form-urlencoded data, not JSON
+      tags:
+        - Search
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required:
+                - search_product
+              properties:
+                search_product:
+                  type: string
+                  description: Search term for product name/description
+                  example: dress
+            examples:
+              search_dress:
+                summary: Search for dresses
+                value: search_product=dress
+              search_blue:
+                summary: Search for blue items
+                value: search_product=blue
+              empty_search:
+                summary: Empty search (returns all products)
+                value: search_product=
+      responses:
+        '200':
+          description: Successful search results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchProductsResponse'
+              examples:
+                found:
+                  summary: Products found
+                  value:
+                    responseCode: 200
+                    products:
+                      - id: 5
+                        name: Stylish Dress
+                        price: Rs. 999
+                        brand: Madame
+                        category:
+                          usertype:
+                            usertype: Women
+                          category: Dress
+                no_match:
+                  summary: No products found
+                  value:
+                    responseCode: 200
+                    products: []
+        '400':
+          description: Bad request (missing search_product parameter)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  schemas:
+    Product:
+      type: object
+      required:
+        - id
+        - name
+        - price
+        - brand
+        - category
+      properties:
+        id:
+          type: integer
+          description: Unique product identifier
+          example: 1
+        name:
+          type: string
+          description: Product name
+          example: Blue Top
+        price:
+          type: string
+          description: Product price with currency
+          pattern: '^Rs\. \d+$'
+          example: Rs. 500
+        brand:
+          type: string
+          description: Brand name
+          example: Polo
+        category:
+          $ref: '#/components/schemas/Category'
+
+    Category:
+      type: object
+      required:
+        - usertype
+        - category
+      properties:
+        usertype:
+          type: object
+          required:
+            - usertype
+          properties:
+            usertype:
+              type: string
+              enum: [Women, Men, Kids]
+              description: Target demographic
+        category:
+          type: string
+          description: Product category
+          example: Tops
+
+    Brand:
+      type: object
+      required:
+        - id
+        - brand
+      properties:
+        id:
+          type: integer
+          description: Unique brand identifier
+          example: 1
+        brand:
+          type: string
+          description: Brand name
+          example: Polo
+
+    ProductsListResponse:
+      type: object
+      required:
+        - responseCode
+        - products
+      properties:
+        responseCode:
+          type: integer
+          enum: [200]
+          description: HTTP status code
+        products:
+          type: array
+          items:
+            $ref: '#/components/schemas/Product'
+          description: Array of product objects
+
+    BrandsListResponse:
+      type: object
+      required:
+        - responseCode
+        - brands
+      properties:
+        responseCode:
+          type: integer
+          enum: [200]
+          description: HTTP status code
+        brands:
+          type: array
+          items:
+            $ref: '#/components/schemas/Brand'
+          description: Array of brand objects
+
+    SearchProductsResponse:
+      type: object
+      required:
+        - responseCode
+        - products
+      properties:
+        responseCode:
+          type: integer
+          enum: [200]
+          description: HTTP status code
+        products:
+          type: array
+          items:
+            $ref: '#/components/schemas/Product'
+          description: Array of matching products (empty if no matches)
+
+    ErrorResponse:
+      type: object
+      required:
+        - responseCode
+        - message
+      properties:
+        responseCode:
+          type: integer
+          description: HTTP error status code
+          example: 500
+        message:
+          type: string
+          description: Error message
+          example: Internal Server Error
+
+  securitySchemes: {}
+
+security: []

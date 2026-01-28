@@ -1,0 +1,306 @@
+name: Playwright Test Suite
+
+on:
+  push:
+    branches: [main, master]
+    paths-ignore:
+      - '**.md'
+      - 'documentation/**'
+      - '.gitignore'
+  pull_request:
+    branches: [main, master]
+    paths-ignore:
+      - '**.md'
+      - 'documentation/**'
+      - '.gitignore'
+  schedule:
+    # Run smoke tests every 4 hours for fast feedback on regressions
+    - cron: '0 */4 * * *'
+  workflow_dispatch:
+    inputs:
+      update_snapshots:
+        description: 'Update Visual Snapshots & Auto-Commit?'
+        type: boolean
+        default: false
+
+# Minimal permissions for security
+# Note: contents:write required for snapshot auto-commit feature
+permissions:
+  contents: write # Required for auto-commit snapshots (only on main branch)
+  actions: read
+  checks: write
+  pull-requests: write # Only for PR comments
+
+jobs:
+  test:
+    timeout-minutes: 60
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, firefox, webkit, mobile-chrome, mobile-safari]
+        shard: [1, 2, 3, 4, 5]
+    container:
+      image: mcr.microsoft.com/playwright:v1.57.0-noble
+      options: --user 1001
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --prefer-offline --no-audit
+
+      # Browsers pre-installed in mcr.microsoft.com/playwright container
+
+      # Secret Validation Step
+      # For portfolio repos: Uses defaults if secrets not configured
+      - name: 🔐 Validate GitHub Secrets
+        run: |
+          echo "🔐 Checking GitHub Secrets configuration..."
+
+          # Use defaults if secrets not set (portfolio-friendly)
+          if [ -z "${BASE_URL}" ]; then
+            echo "⚠️  BASE_URL not set - using default: https://automationexercise.com"
+          else
+            echo "✅ BASE_URL: configured"
+          fi
+
+          if [ -z "${TEST_EMAIL}" ]; then
+            echo "⚠️  TEST_EMAIL not set - tests will use generated data"
+          else
+            echo "✅ TEST_EMAIL: configured"
+          fi
+
+          if [ -z "${TEST_PASSWORD}" ]; then
+            echo "⚠️  TEST_PASSWORD not set - tests will use generated data"
+          else
+            echo "✅ TEST_PASSWORD: configured"
+          fi
+
+          echo ""
+          echo "✅ Configuration validated - proceeding with tests"
+        env:
+          BASE_URL: ${{ secrets.BASE_URL }}
+          TEST_EMAIL: ${{ secrets.TEST_EMAIL }}
+          TEST_PASSWORD: ${{ secrets.TEST_PASSWORD }}
+
+      - name: 🧪 Run Playwright tests
+        id: playwright-tests
+        continue-on-error: true # Don't fail the job on test failures - report them instead
+        run: |
+          # Determine test command based on trigger
+          # Note: @audit tests (security/accessibility audits) are excluded from CI
+          # They find real issues on the target site and are meant for manual review
+          if [ "${{ github.event.inputs.update_snapshots }}" = "true" ]; then
+            echo "📸 Running tests with snapshot updates (shard ${{ matrix.shard }}/5)..."
+            npx playwright test --grep @smoke --grep-invert @audit --project="${{ matrix.browser }}" --shard="${{ matrix.shard }}/5" --update-snapshots --reporter=blob
+          elif [ "${{ github.event_name }}" = "schedule" ]; then
+            echo "⏰ Running scheduled smoke tests (shard ${{ matrix.shard }}/5)..."
+            npx playwright test --grep @smoke --grep-invert @audit --project="${{ matrix.browser }}" --shard="${{ matrix.shard }}/5" --reporter=blob
+          else
+            echo "🧪 Running full test suite (shard ${{ matrix.shard }}/5)..."
+            echo "   ℹ️  Excluding @audit tests (security/accessibility audits) - run locally for full audit"
+            npx playwright test --grep-invert @audit --project="${{ matrix.browser }}" --shard="${{ matrix.shard }}/5" --reporter=blob
+          fi
+        env:
+          # CRITICAL: Required Secrets (with defaults for portfolio)
+          BASE_URL: ${{ secrets.BASE_URL || 'https://automationexercise.com' }}
+          TEST_EMAIL: ${{ secrets.TEST_EMAIL || 'portfolio_test@example.com' }}
+          TEST_PASSWORD: ${{ secrets.TEST_PASSWORD || 'PortfolioTest123!' }}
+
+          # OPTIONAL: Additional Secrets
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          API_KEY: ${{ secrets.API_KEY }}
+          API_TOKEN: ${{ secrets.API_TOKEN }}
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+
+          # CI/CD DETECTION: Automatically set by GitHub Actions
+          CI: 'true'
+          GITHUB_ACTIONS: 'true'
+
+          # CONFIGURATION: Optimized for CI/CD
+          NODE_ENV: 'staging'
+          LOG_LEVEL: 'INFO'
+          TURBO_MODE: 'true'
+          RETRIES: '2'
+          
+          # TEST TYPE: Distinguishes smoke vs full E2E runs
+          TEST_TYPE: ${{ github.event_name == 'schedule' && 'smoke' || 'e2e' }}
+
+      # Auto-Commit Updated Snapshots (requires contents: write permission)
+      - name: 📸 Commit Updated Snapshots
+        if: github.event.inputs.update_snapshots == 'true' && github.event_name != 'pull_request'
+        run: |
+          # Configure git for Actions bot
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          # Note: Auto-commit moved to separate job to avoid race condition
+          # See: commit-snapshots job
+        continue-on-error: true
+
+      # Upload Test Results with better organization
+      - name: 📊 Upload Test Results (Blob Report)
+        if: always()
+        uses: actions/upload-artifact@v4
+        continue-on-error: true
+        with:
+          name: blob-report-${{ matrix.browser }}-shard-${{ matrix.shard }}
+          path: blob-report/
+          retention-days: 30
+          compression-level: 6
+          if-no-files-found: ignore
+
+      # Upload Logs with better filtering
+      - name: 📝 Upload Test Logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-logs-${{ matrix.browser }}-shard-${{ matrix.shard }}
+          path: |
+            test-results/logs/
+            test-results/*.json
+          retention-days: 7
+        continue-on-error: true
+
+      # Generate Test Summary for PR Comments
+      - name: 📋 Generate Test Summary
+        if: always() && github.event_name == 'pull_request'
+        run: |
+          # Create test summary for PR comment
+          echo "## 🧪 Test Results - ${{ matrix.browser }} (Shard ${{ matrix.shard }}/5)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ -f "test-results/results.json" ]; then
+            echo "### Results" >> $GITHUB_STEP_SUMMARY
+            echo '```json' >> $GITHUB_STEP_SUMMARY
+            cat test-results/results.json | jq '.summary' >> $GITHUB_STEP_SUMMARY 2>/dev/null || echo "Results available in artifacts"
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "📊 [Full Report Artifact](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})" >> $GITHUB_STEP_SUMMARY
+        continue-on-error: true
+
+  # 🔀 Merge Shard Reports
+  # Combines all blob reports from shards into unified HTML report
+  merge-reports:
+    if: always()
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --prefer-offline --no-audit
+
+      - name: Download all blob reports
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          pattern: blob-report-*
+          path: blob-reports/
+          merge-multiple: true
+
+      - name: Merge reports
+        run: |
+          if [ -d "./blob-reports" ] && [ "$(ls -A ./blob-reports 2>/dev/null)" ]; then
+            mkdir -p test-results playwright-report
+            
+            echo "📊 Generating HTML report..."
+            npx playwright merge-reports --reporter=html --output-folder=playwright-report ./blob-reports
+            
+            echo "📊 Generating JSON results (capturing stdout)..."
+            npx playwright merge-reports --reporter=json ./blob-reports > test-results/results.json
+            
+            # Validate JSON was generated correctly
+            if [ -f "test-results/results.json" ] && [ -s "test-results/results.json" ]; then
+              echo "✅ JSON results generated successfully"
+              # Show summary stats
+              jq -r '"Tests: \(.stats.expected // 0) passed, \(.stats.unexpected // 0) failed, \(.stats.skipped // 0) skipped"' test-results/results.json 2>/dev/null || echo "JSON validation skipped (jq not available)"
+            else
+              echo "⚠️ JSON results file is empty or missing"
+            fi
+            
+            echo ""
+            echo "📊 Merged report contents:"
+            ls -la playwright-report/
+            ls -la test-results/
+          else
+            echo "⚠️ No blob reports found - skipping merge"
+            mkdir -p playwright-report test-results
+            echo "<html><body><h1>No test reports available</h1></body></html>" > playwright-report/index.html
+            echo '{"stats":{"expected":0,"unexpected":0,"skipped":0},"suites":[]}' > test-results/results.json
+          fi
+
+      - name: Upload merged test report
+        uses: actions/upload-artifact@v4
+        continue-on-error: true
+        with:
+          name: playwright-report-merged
+          path: playwright-report/
+          retention-days: 30
+          if-no-files-found: ignore
+
+      - name: Upload test results JSON
+        uses: actions/upload-artifact@v4
+        continue-on-error: true
+        with:
+          name: test-results-merged
+          path: test-results/results.json
+          retention-days: 30
+          if-no-files-found: ignore
+
+  # Snapshots auto-commit (runs ONCE after all matrix jobs)
+  commit-snapshots:
+    name: 💾 Commit Updated Snapshots
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: main
+
+      - name: Download all test artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: playwright-report-*
+          merge-multiple: true
+          path: .
+
+      - name: 💾 Commit snapshot changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          if ! git diff --quiet || ! git diff --staged --quiet; then
+            echo "📸 Snapshot changes detected, committing..."
+            git add -A
+            git commit -m "chore: update playwright snapshots [skip ci]" \
+              -m "Run: ${{ github.run_id }}" \
+              -m "Commit: ${{ github.sha }}"
+            git push origin main
+            echo "✅ Snapshots committed and pushed"
+          else
+            echo "ℹ️ No snapshot changes to commit"
+          fi
+        continue-on-error: true

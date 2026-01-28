@@ -1,0 +1,41 @@
+version: '3.8'
+
+services:
+  # The Playwright Test Runner
+  playwright:
+    build:
+      context: ../
+      dockerfile: infrastructure/Dockerfile
+    image: qa-suite-playwright:latest
+    container_name: playwright_runner
+    ipc: host # Prevents Chrome crashes by sharing host memory
+    security_opt:
+      - seccomp:unconfined # Allows Chrome to run its sandbox effectively
+    volumes:
+      - ../tests:/app/tests # Hot-reload test files
+      - ../playwright-report:/app/playwright-report # Persist HTML reports
+      - ../test-results:/app/test-results # Persist traces/videos/screenshots
+    environment:
+      - NODE_ENV=test
+      - BASE_URL=http://app:3000 # Pointing to the internal service name
+    networks:
+      - test_network
+    depends_on:
+      - app
+
+  # The Application Service (Mock or Local Build)
+  app:
+    image: node:20-alpine
+    container_name: app_under_test
+    working_dir: /app
+    command: npm run start
+    volumes:
+      - ../:/app
+    ports:
+      - '3000:3000'
+    networks:
+      - test_network
+
+networks:
+  test_network:
+    driver: bridge
