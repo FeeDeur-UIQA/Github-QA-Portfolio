@@ -13,7 +13,8 @@ test.describe('TC-A13: Consistent Design Tests @accessibility', () => {
 
     for (const pagePath of pages) {
       await page.goto(pagePath);
-      await page.waitForLoadState('networkidle');
+      await page.waitForLoadState('domcontentloaded');
+      await page.waitForTimeout(500); // Stability wait for external site
 
       const navLinks = page.locator('nav a, header a, [role="navigation"] a');
       const navCount = await navLinks.count();

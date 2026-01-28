@@ -2,12 +2,18 @@ import { HomePage } from '@pages/HomePage';
 import { LoginPage } from '@pages/LoginPage';
 import { ProductsPage } from '@pages/ProductsPage';
 import { expect, test } from '@playwright/test';
-import {
-  evaluateBorderContrast,
-  evaluateElementContrast,
-  getComplianceLevel,
-} from '@utils/ContrastCalculator';
 import { Logger } from '@utils/Logger';
+
+/**
+ * Inline contrast calculation for browser context
+ * Firefox doesn't support imported functions in evaluate()
+ */
+function getComplianceLevelSync(contrast: number): string {
+  if (contrast >= 7.0) return 'AAA (excellent)';
+  if (contrast >= 4.5) return 'AA (good)';
+  if (contrast >= 3.0) return 'A (minimum)';
+  return 'Failed';
+}
 
 /**
  * TC-A06: Color Contrast Validation
@@ -46,12 +52,44 @@ test.describe('TC-A06: Color Contrast Validation @accessibility @flows @medium',
         const link = navLinks.nth(i);
         const linkText = await link.textContent();
 
-        const contrast = await link.evaluate<number>((el) =>
-          evaluateElementContrast(el as HTMLElement),
-        );
+        const contrast = await link.evaluate<number>((el) => {
+          const styles = window.getComputedStyle(el);
+          const color = styles.color;
+
+          const parseRGB = (rgb: string): number[] => {
+            const match = rgb.match(/\d+/g);
+            return match ? match.slice(0, 3).map(Number) : [0, 0, 0];
+          };
+
+          const getLuminance = (rgb: number[]): number => {
+            const [r, g, b] = rgb.map((val) => {
+              const sRGB = val / 255;
+              return sRGB <= 0.03928 ? sRGB / 12.92 : Math.pow((sRGB + 0.055) / 1.055, 2.4);
+            });
+            return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+          };
+
+          let bgColor = styles.backgroundColor;
+          if (bgColor === 'rgba(0, 0, 0, 0)' || bgColor === 'transparent') {
+            let parent = (el as HTMLElement).parentElement;
+            while (parent && (bgColor === 'rgba(0, 0, 0, 0)' || bgColor === 'transparent')) {
+              bgColor = window.getComputedStyle(parent).backgroundColor;
+              parent = parent.parentElement;
+            }
+          }
+
+          const textRGB = parseRGB(color);
+          const bgRGB = parseRGB(bgColor);
+          const lum1 = getLuminance(textRGB);
+          const lum2 = getLuminance(bgRGB);
+          const lighter = Math.max(lum1, lum2);
+          const darker = Math.min(lum1, lum2);
+
+          return (lighter + 0.05) / (darker + 0.05);
+        });
 
         logger.info(`[INFO] "${linkText?.trim()}" contrast ratio: ${contrast.toFixed(2)}:1`);
-        logger.info(`[INFO] Compliance: ${getComplianceLevel(contrast)}`);
+        logger.info(`[INFO] Compliance: ${getComplianceLevelSync(contrast)}`);
 
         // WCAG 2.2 Level AA requires 4.5:1 for normal text
         const WCAG_AA_NORMAL = 4.5;
@@ -118,12 +156,44 @@ test.describe('TC-A06: Color Contrast Validation @accessibility @flows @medium',
       // Explicitly wait for button to be visible and ready
       await expect(addToCartBtn).toBeVisible({ timeout: 8000 });
 
-      const contrast = await addToCartBtn.evaluate<number>((el) =>
-        evaluateElementContrast(el as HTMLElement),
-      );
+      const contrast = await addToCartBtn.evaluate<number>((el) => {
+        const styles = window.getComputedStyle(el);
+        const color = styles.color;
+
+        const parseRGB = (rgb: string): number[] => {
+          const match = rgb.match(/\d+/g);
+          return match ? match.slice(0, 3).map(Number) : [0, 0, 0];
+        };
+
+        const getLuminance = (rgb: number[]): number => {
+          const [r, g, b] = rgb.map((val) => {
+            const sRGB = val / 255;
+            return sRGB <= 0.03928 ? sRGB / 12.92 : Math.pow((sRGB + 0.055) / 1.055, 2.4);
+          });
+          return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+        };
+
+        let bgColor = styles.backgroundColor;
+        if (bgColor === 'rgba(0, 0, 0, 0)' || bgColor === 'transparent') {
+          let parent = (el as HTMLElement).parentElement;
+          while (parent && (bgColor === 'rgba(0, 0, 0, 0)' || bgColor === 'transparent')) {
+            bgColor = window.getComputedStyle(parent).backgroundColor;
+            parent = parent.parentElement;
+          }
+        }
+
+        const textRGB = parseRGB(color);
+        const bgRGB = parseRGB(bgColor);
+        const lum1 = getLuminance(textRGB);
+        const lum2 = getLuminance(bgRGB);
+        const lighter = Math.max(lum1, lum2);
+        const darker = Math.min(lum1, lum2);
+
+        return (lighter + 0.05) / (darker + 0.05);
+      });
 
       logger.info(`[INFO] Button contrast: ${contrast.toFixed(2)}:1`);
-      logger.info(`[INFO] Compliance: ${getComplianceLevel(contrast)}`);
+      logger.info(`[INFO] Compliance: ${getComplianceLevelSync(contrast)}`);
 
       // Buttons should have at least 3:1 contrast (WCAG A, practical for this site)
       expect(contrast).toBeGreaterThanOrEqual(3.0);
@@ -144,12 +214,44 @@ test.describe('TC-A06: Color Contrast Validation @accessibility @flows @medium',
     await test.step('2: Check login form input contrast', async () => {
       const emailInput = page.locator('input[data-qa="login-email"]');
 
-      const contrast = await emailInput.evaluate<number>((el) =>
-        evaluateElementContrast(el as HTMLElement),
-      );
+      const contrast = await emailInput.evaluate<number>((el) => {
+        const styles = window.getComputedStyle(el);
+        const color = styles.color;
+
+        const parseRGB = (rgb: string): number[] => {
+          const match = rgb.match(/\d+/g);
+          return match ? match.slice(0, 3).map(Number) : [0, 0, 0];
+        };
+
+        const getLuminance = (rgb: number[]): number => {
+          const [r, g, b] = rgb.map((val) => {
+            const sRGB = val / 255;
+            return sRGB <= 0.03928 ? sRGB / 12.92 : Math.pow((sRGB + 0.055) / 1.055, 2.4);
+          });
+          return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+        };
+
+        let bgColor = styles.backgroundColor;
+        if (bgColor === 'rgba(0, 0, 0, 0)' || bgColor === 'transparent') {
+          let parent = (el as HTMLElement).parentElement;
+          while (parent && (bgColor === 'rgba(0, 0, 0, 0)' || bgColor === 'transparent')) {
+            bgColor = window.getComputedStyle(parent).backgroundColor;
+            parent = parent.parentElement;
+          }
+        }
+
+        const textRGB = parseRGB(color);
+        const bgRGB = parseRGB(bgColor);
+        const lum1 = getLuminance(textRGB);
+        const lum2 = getLuminance(bgRGB);
+        const lighter = Math.max(lum1, lum2);
+        const darker = Math.min(lum1, lum2);
+
+        return (lighter + 0.05) / (darker + 0.05);
+      });
 
       logger.info(`[INFO] Form input contrast: ${contrast.toFixed(2)}:1`);
-      logger.info(`[INFO] Compliance: ${getComplianceLevel(contrast)}`);
+      logger.info(`[INFO] Compliance: ${getComplianceLevelSync(contrast)}`);
 
       // Inputs should have at least 3:1 contrast (practical baseline)
       expect(contrast).toBeGreaterThanOrEqual(3.0);
@@ -158,12 +260,36 @@ test.describe('TC-A06: Color Contrast Validation @accessibility @flows @medium',
     await test.step('3: Check input field border contrast', async () => {
       const emailInput = loginPage.getEmailInput();
 
-      const borderContrast = await emailInput.evaluate<number>((el) =>
-        evaluateBorderContrast(el as HTMLElement),
-      );
+      const borderContrast = await emailInput.evaluate<number>((el) => {
+        const styles = window.getComputedStyle(el);
+        const borderColor = styles.borderColor || styles.borderTopColor;
+        const bgColor = styles.backgroundColor;
+
+        const parseRGB = (rgb: string): number[] => {
+          const match = rgb.match(/\d+/g);
+          return match ? match.slice(0, 3).map(Number) : [0, 0, 0];
+        };
+
+        const getLuminance = (rgb: number[]): number => {
+          const [r, g, b] = rgb.map((val) => {
+            const sRGB = val / 255;
+            return sRGB <= 0.03928 ? sRGB / 12.92 : Math.pow((sRGB + 0.055) / 1.055, 2.4);
+          });
+          return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+        };
+
+        const borderRGB = parseRGB(borderColor);
+        const bgRGB = parseRGB(bgColor);
+        const lum1 = getLuminance(borderRGB);
+        const lum2 = getLuminance(bgRGB);
+        const lighter = Math.max(lum1, lum2);
+        const darker = Math.min(lum1, lum2);
+
+        return (lighter + 0.05) / (darker + 0.05);
+      });
 
       logger.info(`[INFO] Border contrast: ${borderContrast.toFixed(2)}:1`);
-      logger.info(`[INFO] Compliance: ${getComplianceLevel(borderContrast)}`);
+      logger.info(`[INFO] Compliance: ${getComplianceLevelSync(borderContrast)}`);
 
       expect(borderContrast).toBeGreaterThanOrEqual(3.0);
     });
@@ -201,12 +327,44 @@ test.describe('TC-A06: Color Contrast Validation @accessibility @flows @medium',
       try {
         await errorMessage.waitFor({ state: 'visible', timeout: 3000 });
 
-        const contrast = await errorMessage.evaluate<number>((el) =>
-          evaluateElementContrast(el as HTMLElement),
-        );
+        const contrast = await errorMessage.evaluate<number>((el) => {
+          const styles = window.getComputedStyle(el);
+          const color = styles.color;
+
+          const parseRGB = (rgb: string): number[] => {
+            const match = rgb.match(/\d+/g);
+            return match ? match.slice(0, 3).map(Number) : [0, 0, 0];
+          };
+
+          const getLuminance = (rgb: number[]): number => {
+            const [r, g, b] = rgb.map((val) => {
+              const sRGB = val / 255;
+              return sRGB <= 0.03928 ? sRGB / 12.92 : Math.pow((sRGB + 0.055) / 1.055, 2.4);
+            });
+            return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+          };
+
+          let bgColor = styles.backgroundColor;
+          if (bgColor === 'rgba(0, 0, 0, 0)' || bgColor === 'transparent') {
+            let parent = (el as HTMLElement).parentElement;
+            while (parent && (bgColor === 'rgba(0, 0, 0, 0)' || bgColor === 'transparent')) {
+              bgColor = window.getComputedStyle(parent).backgroundColor;
+              parent = parent.parentElement;
+            }
+          }
+
+          const textRGB = parseRGB(color);
+          const bgRGB = parseRGB(bgColor);
+          const lum1 = getLuminance(textRGB);
+          const lum2 = getLuminance(bgRGB);
+          const lighter = Math.max(lum1, lum2);
+          const darker = Math.min(lum1, lum2);
+
+          return (lighter + 0.05) / (darker + 0.05);
+        });
 
         logger.info(`[INFO] Error message contrast: ${contrast.toFixed(2)}:1`);
-        logger.info(`[INFO] Compliance: ${getComplianceLevel(contrast)}`);
+        logger.info(`[INFO] Compliance: ${getComplianceLevelSync(contrast)}`);
 
         // Error messages should be visible; accept 3:1 practical minimum
         expect(contrast).toBeGreaterThanOrEqual(3.0);

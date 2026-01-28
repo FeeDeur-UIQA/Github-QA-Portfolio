@@ -14,7 +14,8 @@ import { test, expect } from '@playwright/test';
 test.describe('TC-A08: Focus Not Obscured Tests @accessibility', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
+    await page.waitForTimeout(500); // Stability wait for external site
   });
 
   test('Focus outline visible when tabbing through main navigation', async ({ page }) => {
@@ -107,7 +108,8 @@ test.describe('TC-A08: Focus Not Obscured Tests @accessibility', () => {
 
   test('Form inputs are accessible and visible', async ({ page }) => {
     await page.goto('/products');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
+    await page.waitForTimeout(500); // Stability wait for external site
 
     // Dismiss any popups that might be blocking
     const closeButtons = page
@@ -143,7 +145,8 @@ test.describe('TC-A08: Focus Not Obscured Tests @accessibility', () => {
 
   test('Header remains accessible while scrolling', async ({ page }) => {
     await page.goto('/');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
+    await page.waitForTimeout(500); // Stability wait for external site
 
     // Get header element if it exists
     const header = page.locator('header').first();
@@ -224,7 +227,8 @@ test.describe('TC-A08: Focus Not Obscured Tests @accessibility', () => {
 
   test('Page elements maintain visibility at different viewport sizes', async ({ page }) => {
     await page.goto('/');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
+    await page.waitForTimeout(500); // Stability wait for external site
 
     const viewportSizes = [
       { width: 1920, height: 1080, name: 'desktop' },
@@ -258,7 +262,8 @@ test.describe('TC-A08: Focus Not Obscured Tests @accessibility', () => {
 
   test('Interactive elements have adequate sizing', async ({ page }) => {
     await page.goto('/products');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
+    await page.waitForTimeout(500); // Stability wait for external site
 
     // Check various interactive elements
     const buttons = page.locator('button, [role="button"], a.btn').first();
@@ -284,7 +289,8 @@ test.describe('TC-A08: Focus Not Obscured Tests @accessibility', () => {
 
   test('Page content remains visible after page load', async ({ page }) => {
     await page.goto('/');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
+    await page.waitForTimeout(500); // Stability wait for external site
 
     // Check that main content is visible and not hidden
     const mainContent = page.locator('body');

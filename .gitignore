@@ -55,6 +55,7 @@ artifact/
 # Archive folder - working documents, not for portfolio
 documentation/archive/
 .jira-failure-patterns.json
+SNAPSHOT_STRATEGY.md
 
 # Test artifacts and reports
 FLAKE-REPORT.md
