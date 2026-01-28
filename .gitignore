@@ -49,9 +49,19 @@ lighthouse-results.json
 blob-report/
 artifact/
 
+# Internal Analysis Documents
+.qa-analysis.md
+
 # Archive folder - working documents, not for portfolio
 documentation/archive/
 .jira-failure-patterns.json
+
+# Test artifacts and reports
+FLAKE-REPORT.md
+test-stability.json
+visual-flakes.json
+test-output.log
+.env.example.local
 
 # K6 compiled load tests
 tests/load/compiled/

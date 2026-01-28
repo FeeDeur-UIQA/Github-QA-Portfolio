@@ -222,10 +222,10 @@ jobs:
             mkdir -p test-results playwright-report
             
             echo "📊 Generating HTML report..."
-            npx playwright merge-reports --reporter=html --output-folder=playwright-report ./blob-reports
+            npx playwright merge-reports --reporter html ./blob-reports
             
             echo "📊 Generating JSON results (capturing stdout)..."
-            npx playwright merge-reports --reporter=json ./blob-reports > test-results/results.json
+            npx playwright merge-reports --reporter json ./blob-reports > test-results/results.json
             
             # Validate JSON was generated correctly
             if [ -f "test-results/results.json" ] && [ -s "test-results/results.json" ]; then

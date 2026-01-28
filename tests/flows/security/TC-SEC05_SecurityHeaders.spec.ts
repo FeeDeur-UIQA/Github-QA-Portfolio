@@ -401,7 +401,7 @@ test.describe('TC-SEC05: Security Headers Validation @security @critical @automa
 
     // Check audit mode before enforcing score threshold
     if (SECURITY_MODE === 'audit') {
-      logger.warn('📋 [AUDIT MODE] Security score below threshold (${avgScore.toFixed(1)}/100)');
+      logger.warn(`📋 [AUDIT MODE] Security score below threshold (${avgScore.toFixed(1)}/100)`);
       logger.warn('   In production: this would block deployment (OWASP best practice)');
       test.skip(); // Document but don't block
       return;
