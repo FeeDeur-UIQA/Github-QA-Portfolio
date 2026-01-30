@@ -11,6 +11,8 @@ on:
 
 jobs:
   copilot-setup-steps:
+    # Only run on the original repo - prevents forks from using our Actions minutes
+    if: github.repository == 'FeeDeur-UIQA/Github-QA-Portfolio'
     runs-on: ubuntu-latest
 
     permissions:
