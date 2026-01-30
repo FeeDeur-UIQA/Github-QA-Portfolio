@@ -1,32 +1,17 @@
 name: Flow Tests (E2E)
 
+# Callable by CI Orchestrator + manual dispatch
 on:
-  schedule:
-    # Run weekly on Saturdays at 2 AM UTC (portfolio-friendly frequency)
-    - cron: '0 2 * * 6'
-  workflow_dispatch:
+  workflow_call:  # Called by ci-orchestrator.yml
+  workflow_dispatch:  # Manual runs still supported
     inputs:
       feature:
         description: 'Feature to test (auth|cart|catalog|account|all)'
         required: false
         default: 'all'
-  pull_request:
-    branches: [main]
-    paths-ignore:
-      - '**.md'
-      - 'documentation/**'
-      - '.gitignore'
-  push:
-    branches: [main]
-    paths-ignore:
-      - '**.md'
-      - 'documentation/**'
-      - '.gitignore'
 
 jobs:
   flow-tests:
-    # Only run on the original repo - prevents forks from using our Actions minutes
-    if: github.repository == 'FeeDeur-UIQA/Github-QA-Portfolio'
     timeout-minutes: 30
     runs-on: ubuntu-latest
     continue-on-error: true

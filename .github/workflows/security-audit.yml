@@ -1,22 +1,9 @@
 name: Security Audit
 
+# Callable by CI Orchestrator + manual dispatch
 on:
-  push:
-    branches: [main, master]
-    paths-ignore:
-      - '**.md'
-      - 'documentation/**'
-      - '.gitignore'
-  pull_request:
-    branches: [main, master]
-    paths-ignore:
-      - '**.md'
-      - 'documentation/**'
-      - '.gitignore'
-  schedule:
-    # Run weekly on Monday at 9 AM UTC
-    - cron: '0 9 * * 1'
-  workflow_dispatch:
+  workflow_call:  # Called by ci-orchestrator.yml
+  workflow_dispatch:  # Manual runs still supported
 
 permissions:
   contents: read
@@ -26,8 +13,6 @@ permissions:
 jobs:
   npm-audit:
     name: NPM Security Audit
-    # Only run on the original repo - prevents forks from using our Actions minutes
-    if: github.repository == 'FeeDeur-UIQA/Github-QA-Portfolio'
     runs-on: ubuntu-latest
 
     steps:

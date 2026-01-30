@@ -1,0 +1,153 @@
+name: CI Orchestrator
+
+# Central orchestrator for all CI/CD workflows
+# Implements staged fan-out pattern for optimal efficiency and single report publish
+
+on:
+  push:
+    branches: [main, master]
+    paths-ignore:
+      - '**.md'
+      - 'documentation/**'
+      - '.gitignore'
+  pull_request:
+    branches: [main, master]
+    paths-ignore:
+      - '**.md'
+      - 'documentation/**'
+      - '.gitignore'
+  schedule:
+    # Weekly full regression on Sundays at 3 AM UTC
+    - cron: '0 3 * * 0'
+  workflow_dispatch:
+    inputs:
+      skip_stage1:
+        description: 'Skip Stage 1 (Smoke/Security/Perf)'
+        type: boolean
+        default: false
+      skip_stage2:
+        description: 'Skip Stage 2 (Flow/Playwright)'
+        type: boolean
+        default: false
+      update_snapshots:
+        description: 'Update Visual Snapshots'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  actions: read
+  checks: write
+  pull-requests: write
+  pages: write
+  id-token: write
+  security-events: write
+  issues: write
+
+jobs:
+  # ============================================================
+  # GATE: Repository validation
+  # ============================================================
+  gate:
+    name: 🚦 Gate
+    runs-on: ubuntu-latest
+    # Only run on the original repo - prevents forks from using our Actions minutes
+    if: github.repository == 'FeeDeur-UIQA/Github-QA-Portfolio'
+    outputs:
+      should_run: ${{ steps.check.outputs.should_run }}
+    steps:
+      - name: Validate repository
+        id: check
+        run: |
+          echo "should_run=true" >> $GITHUB_OUTPUT
+          echo "✅ Repository validated: ${{ github.repository }}"
+          echo "📌 Trigger: ${{ github.event_name }}"
+          echo "🌿 Branch: ${{ github.ref_name }}"
+
+  # ============================================================
+  # STAGE 1: Fast Feedback (parallel) - ~3 minutes
+  # ============================================================
+  stage1-smoke:
+    name: 🔥 Smoke Tests
+    needs: gate
+    if: ${{ !inputs.skip_stage1 }}
+    uses: ./.github/workflows/smoke-tests.yml
+    secrets: inherit
+
+  stage1-security:
+    name: 🔒 Security Audit
+    needs: gate
+    if: ${{ !inputs.skip_stage1 }}
+    uses: ./.github/workflows/security-audit.yml
+    secrets: inherit
+
+  stage1-performance:
+    name: ⚡ Performance Budgets
+    needs: gate
+    if: ${{ !inputs.skip_stage1 }}
+    uses: ./.github/workflows/lighthouse.yml
+    secrets: inherit
+
+  # ============================================================
+  # STAGE 2: Full Test Suite (parallel) - ~25 minutes
+  # Waits for Stage 1 to complete (fast feedback first)
+  # ============================================================
+  stage2-flow:
+    name: 🔄 Flow Tests (E2E)
+    needs: [stage1-smoke, stage1-security, stage1-performance]
+    if: |
+      always() && 
+      !inputs.skip_stage2 &&
+      (needs.stage1-smoke.result == 'success' || needs.stage1-smoke.result == 'skipped')
+    uses: ./.github/workflows/flow-tests.yml
+    secrets: inherit
+
+  stage2-playwright:
+    name: 🎭 Playwright Full Suite
+    needs: [stage1-smoke, stage1-security, stage1-performance]
+    if: |
+      always() && 
+      !inputs.skip_stage2 &&
+      (needs.stage1-smoke.result == 'success' || needs.stage1-smoke.result == 'skipped')
+    uses: ./.github/workflows/playwright.yml
+    with:
+      update_snapshots: ${{ inputs.update_snapshots || false }}
+    secrets: inherit
+
+  # ============================================================
+  # STAGE 3: Publish Reports (single run after all tests)
+  # ============================================================
+  stage3-publish:
+    name: 📊 Publish Reports
+    needs: [stage2-flow, stage2-playwright]
+    if: always()
+    uses: ./.github/workflows/publish-reports.yml
+    secrets: inherit
+
+  # ============================================================
+  # Summary: Final status report
+  # ============================================================
+  summary:
+    name: 📋 Pipeline Summary
+    needs: [stage1-smoke, stage1-security, stage1-performance, stage2-flow, stage2-playwright, stage3-publish]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate Pipeline Summary
+        run: |
+          echo "## 🚀 CI Pipeline Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Stage | Job | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|-----|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| 1 | Smoke Tests | ${{ needs.stage1-smoke.result == 'success' && '✅' || needs.stage1-smoke.result == 'skipped' && '⏭️' || '❌' }} ${{ needs.stage1-smoke.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 1 | Security Audit | ${{ needs.stage1-security.result == 'success' && '✅' || needs.stage1-security.result == 'skipped' && '⏭️' || '❌' }} ${{ needs.stage1-security.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 1 | Performance | ${{ needs.stage1-performance.result == 'success' && '✅' || needs.stage1-performance.result == 'skipped' && '⏭️' || '❌' }} ${{ needs.stage1-performance.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 2 | Flow Tests | ${{ needs.stage2-flow.result == 'success' && '✅' || needs.stage2-flow.result == 'skipped' && '⏭️' || '❌' }} ${{ needs.stage2-flow.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 2 | Playwright Suite | ${{ needs.stage2-playwright.result == 'success' && '✅' || needs.stage2-playwright.result == 'skipped' && '⏭️' || '❌' }} ${{ needs.stage2-playwright.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 3 | Publish Reports | ${{ needs.stage3-publish.result == 'success' && '✅' || needs.stage3-publish.result == 'skipped' && '⏭️' || '❌' }} ${{ needs.stage3-publish.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📌 Trigger Info" >> $GITHUB_STEP_SUMMARY
+          echo "- **Event:** ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Branch:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Actor:** ${{ github.actor }}" >> $GITHUB_STEP_SUMMARY

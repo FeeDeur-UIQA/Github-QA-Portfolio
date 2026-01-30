@@ -1,17 +1,9 @@
 name: Publish Test Reports
 
+# Callable by CI Orchestrator only (single publish per pipeline)
 on:
-  workflow_run:
-    workflows:
-      - 'Playwright Test Suite'
-      - 'Smoke Tests'
-      - 'Flow Tests (E2E)'
-      - 'Visual Stability Monitor'
-      - 'Security Audit'
-      - 'Performance Budgets'
-    types:
-      - completed
-  workflow_dispatch:
+  workflow_call:  # Called by ci-orchestrator.yml (Stage 3)
+  workflow_dispatch:  # Manual runs still supported
 
 permissions:
   contents: read
@@ -25,8 +17,6 @@ concurrency:
 jobs:
   publish-reports:
     runs-on: ubuntu-latest
-    # Only run on the original repo AND respect existing conditions
-    if: github.repository == 'FeeDeur-UIQA/Github-QA-Portfolio' && (github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion != 'cancelled')
 
     environment:
       name: github-pages

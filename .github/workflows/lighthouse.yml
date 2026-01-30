@@ -1,19 +1,9 @@
 name: Performance Budgets
 
+# Callable by CI Orchestrator + manual dispatch
 on:
-  pull_request:
-    branches: [main, master]
-    paths-ignore:
-      - '**.md'
-      - 'documentation/**'
-      - '.gitignore'
-  push:
-    branches: [main, master]
-    paths-ignore:
-      - '**.md'
-      - 'documentation/**'
-      - '.gitignore'
-  workflow_dispatch:
+  workflow_call:  # Called by ci-orchestrator.yml
+  workflow_dispatch:  # Manual runs still supported
 
 permissions:
   contents: read
@@ -22,8 +12,6 @@ permissions:
 jobs:
   lighthouse:
     name: Lighthouse Performance Audit
-    # Only run on the original repo - prevents forks from using our Actions minutes
-    if: github.repository == 'FeeDeur-UIQA/Github-QA-Portfolio'
     runs-on: ubuntu-latest
 
     steps:

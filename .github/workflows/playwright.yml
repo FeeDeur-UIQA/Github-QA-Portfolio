@@ -1,22 +1,14 @@
 name: Playwright Test Suite
 
+# Callable by CI Orchestrator + manual dispatch
 on:
-  push:
-    branches: [main, master]
-    paths-ignore:
-      - '**.md'
-      - 'documentation/**'
-      - '.gitignore'
-  pull_request:
-    branches: [main, master]
-    paths-ignore:
-      - '**.md'
-      - 'documentation/**'
-      - '.gitignore'
-  schedule:
-    # Run weekly on Sundays at 3 AM UTC (portfolio-friendly frequency)
-    - cron: '0 3 * * 0'
-  workflow_dispatch:
+  workflow_call:  # Called by ci-orchestrator.yml
+    inputs:
+      update_snapshots:
+        description: 'Update Visual Snapshots & Auto-Commit?'
+        type: boolean
+        default: false
+  workflow_dispatch:  # Manual runs still supported
     inputs:
       update_snapshots:
         description: 'Update Visual Snapshots & Auto-Commit?'
@@ -33,8 +25,6 @@ permissions:
 
 jobs:
   test:
-    # Only run on the original repo - prevents forks from using our Actions minutes
-    if: github.repository == 'FeeDeur-UIQA/Github-QA-Portfolio'
     timeout-minutes: 60
     runs-on: ubuntu-latest
     strategy:
